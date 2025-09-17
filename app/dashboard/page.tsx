@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { AppShell } from '@/components/AppShell';
+import { AppShell } from '../../components/AppShell';
 
 const responseTimes = [
   { label: 'LLM', value: '2.4s', trend: '+12%' },
@@ -281,78 +281,13 @@ export default function Dashboard() {
 
   const isActionDisabled = !selectedClaim || selectedClaim.severity === 'Verified';
 
-  const [showWorkspace, setShowWorkspace] = useState(false);
-
   return (
     <AppShell>
       <div className="relative mx-auto flex min-h-screen w-full max-w-[1440px] flex-col overflow-hidden px-6 pb-20 pt-10">
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(80,90,255,0.18),_transparent_70%)]" />
         <div className="pointer-events-none absolute bottom-0 left-1/2 -z-10 h-[520px] w-[520px] -translate-x-1/2 translate-y-1/3 rounded-full bg-[radial-gradient(circle,_rgba(163,255,18,0.12),_transparent_70%)] blur-3xl" />
 
-        {!showWorkspace ? (
-          <section className="mt-10 flex flex-1 flex-col items-center justify-center gap-12 text-center">
-            <div className="max-w-3xl space-y-4">
-              <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Start a fact-check</p>
-              <h1 className="text-4xl font-semibold text-white sm:text-5xl">Upload or paste your content</h1>
-              <p className="text-sm text-neutral-400">
-                FactCheck AI extracts every claim, verifies it against Exa search, and suggests Groq-powered fixes. Choose how you’d like to bring your draft into the workspace.
-              </p>
-            </div>
-            <div className="grid w-full max-w-4xl gap-6 md:grid-cols-2 lg:grid-cols-4">
-              {[
-                {
-                  title: 'Paste text',
-                  description: 'Drop in copied content and jump straight into claim review.',
-                  icon: FileText,
-                  action: () => setShowWorkspace(true),
-                },
-                {
-                  title: 'Upload document',
-                  description: 'Import PDF, DOCX, or TXT and extract claims automatically.',
-                  icon: Upload,
-                  action: () => setShowWorkspace(true),
-                },
-                {
-                  title: 'Import URL',
-                  description: 'Pull web content via Exa crawl for instant verification.',
-                  icon: Globe,
-                  action: () => setShowWorkspace(true),
-                },
-                {
-                  title: 'Start from prompt',
-                  description: 'Generate a draft and fact-check it without leaving the workspace.',
-                  icon: PlusCircle,
-                  action: () => setShowWorkspace(true),
-                },
-              ].map((card) => (
-                <button
-                  key={card.title}
-                  onClick={card.action}
-                  className="group flex h-full flex-col items-start gap-4 rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-white/30 hover:bg-white/10"
-                >
-                  <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#101010] text-white">
-                    <card.icon className="h-5 w-5" />
-                  </span>
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-semibold text-white">{card.title}</h3>
-                    <p className="text-sm text-neutral-400">{card.description}</p>
-                  </div>
-                  <span className="mt-auto inline-flex items-center gap-1 text-xs font-semibold text-neutral-300 group-hover:text-white">
-                    Continue <ArrowUpRight className="h-3 w-3" />
-                  </span>
-                </button>
-              ))}
-            </div>
-            <div className="text-xs text-neutral-500">
-              Need inspiration?{' '}
-              <button className="underline underline-offset-2" onClick={() => setShowWorkspace(true)}>
-                Load sample workspace
-              </button>
-            </div>
-          </section>
-        ) : (
-          <>
-            <header className="flex flex-col gap-6 pb-10">
+        <header className="flex flex-col gap-6 pb-10">
               <div className="flex flex-col gap-3 text-sm text-neutral-400 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Operations console</p>
@@ -360,7 +295,6 @@ export default function Dashboard() {
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <button
-                    onClick={() => setShowWorkspace(false)}
                     className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/30"
                   >
                     Upload another draft
@@ -434,11 +368,7 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
-            </header>
-
-            <section className="mb-10 grid gap-6 xl:grid-cols-[2.1fr,0.9fr]">
-              {/* existing workspace content */}
-
+        </header>
         <section className="mb-10 grid gap-6 xl:grid-cols-[2.1fr,0.9fr]">
           <div className="rounded-[36px] border border-white/10 bg-white/[0.04] p-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
