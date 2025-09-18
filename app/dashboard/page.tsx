@@ -21,11 +21,14 @@ import {
   Upload,
   UploadCloud,
   Users,
+  X,
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AppShell } from '../../components/AppShell';
+import DocumentUpload from '../../components/DocumentUpload';
+import DocumentCard from '../../components/DocumentCard';
 
 const responseTimes = [
   { label: 'LLM', value: '2.4s', trend: '+12%' },
@@ -227,6 +230,9 @@ export default function Dashboard() {
   const [claims, setClaims] = useState<ClaimRecord[]>(initialClaims);
   const [activeTab, setActiveTab] = useState<'All' | ClaimSeverity>('All');
   const [selectedClaimId, setSelectedClaimId] = useState<string>(initialClaims[0]?.id ?? '');
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [currentDocument, setCurrentDocument] = useState<any>(null);
+  const [showUpload, setShowUpload] = useState(false);
 
   const filteredClaims = useMemo(() => {
     if (activeTab === 'All') {
@@ -281,6 +287,111 @@ export default function Dashboard() {
 
   const isActionDisabled = !selectedClaim || selectedClaim.severity === 'Verified';
 
+  const handleFileProcessed = (data: any) => {
+    const newDocument = {
+      id: Date.now().toString(),
+      filename: data.filename,
+      fileSize: data.fileSize,
+      claimCount: data.claimCount,
+      verifiedCount: Math.floor(data.claimCount * 0.7),
+      status: 'completed' as const,
+      confidence: 85,
+      lastUpdated: 'Just now',
+      claims: data.claims
+    };
+
+    setDocuments(prev => [newDocument, ...prev]);
+    setCurrentDocument(newDocument);
+    setShowUpload(false);
+
+    // Convert extracted claims to ClaimRecord format
+    const newClaims: ClaimRecord[] = data.claims.map((claim: any, index: number) => ({
+      id: `CLM-${200 + index}`,
+      severity: index === 0 ? 'Critical' : index === 1 ? 'Warning' : 'Minor',
+      badgeClass: index === 0 ? 'bg-[#f87171]/20 text-[#f87171]' :
+                  index === 1 ? 'bg-[#facc15]/20 text-[#facc15]' :
+                  'bg-[#34d399]/20 text-[#34d399]',
+      excerpt: `"${claim.claim}"`,
+      location: 'Document upload · Line N/A',
+      confidence: `${Math.floor(Math.random() * 30) + 70}% confidence`,
+      status: 'Needs verification',
+      sources: []
+    }));
+
+    setClaims(prev => [...newClaims, ...prev]);
+  };
+
+  const handleDocumentSelect = (document: any) => {
+    setCurrentDocument(document);
+    // Filter claims for this document (simplified for demo)
+    const documentClaims = claims.filter(claim =>
+      claim.location.includes('Document upload')
+    );
+    if (documentClaims.length > 0) {
+      setSelectedClaimId(documentClaims[0].id);
+    }
+  };
+
+  const verifyClaim = async (claimText: string) => {
+    try {
+      const response = await fetch('/api/exasearch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claim: claimText })
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      return data.results || [];
+    } catch (err) {
+      console.error('Verification failed:', err);
+      return [];
+    }
+  };
+
+  const handleVerifyClaim = async () => {
+    if (!selectedClaim) return;
+
+    // Extract the actual claim text from the excerpt
+    const claimText = selectedClaim.excerpt.replace(/[""]/g, '');
+
+    // Show loading state
+    const originalStatus = selectedClaim.status;
+    setClaims(prev => prev.map(claim =>
+      claim.id === selectedClaim.id
+        ? { ...claim, status: 'Verifying...' }
+        : claim
+    ));
+
+    try {
+      const sources = await verifyClaim(claimText);
+
+      // Update the claim with verification results
+      setClaims(prev => prev.map(claim =>
+        claim.id === selectedClaim.id
+          ? {
+              ...claim,
+              status: sources.length > 0 ? 'Verified' : 'Needs research',
+              sources: sources.slice(0, 3).map((source: any) => ({
+                name: source.title || 'Source',
+                detail: source.url || source.text || 'Source details unavailable'
+              }))
+            }
+          : claim
+      ));
+    } catch (err) {
+      setClaims(prev => prev.map(claim =>
+        claim.id === selectedClaim.id
+          ? { ...claim, status: 'Verification failed' }
+          : claim
+      ));
+    }
+  };
+
   return (
     <AppShell>
       <div className="relative mx-auto flex min-h-screen w-full max-w-[1440px] flex-col overflow-hidden px-6 pb-20 pt-10">
@@ -295,10 +406,11 @@ export default function Dashboard() {
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <button
+                    onClick={() => setShowUpload(!showUpload)}
                     className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/30"
                   >
-                    Upload another draft
-                    <ArrowUp className="h-4 w-4" />
+                    Upload document
+                    <Upload className="h-4 w-4" />
                   </button>
                   <button className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-neutral-200">
                     Deploy guardrail
@@ -369,13 +481,79 @@ export default function Dashboard() {
                 </div>
               </div>
         </header>
+
+        {/* Document Upload Section */}
+        {showUpload && (
+          <div className="mb-10 rounded-[36px] border border-white/10 bg-white/[0.04] p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-[#a3ff12]">Upload & Analyze</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">Process New Document</h2>
+              </div>
+              <button
+                onClick={() => setShowUpload(false)}
+                className="p-2 rounded-full border border-white/10 text-white/60 hover:border-white/30 hover:text-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <DocumentUpload onFileProcessed={handleFileProcessed} />
+          </div>
+        )}
+
+        {/* Documents Grid */}
+        {documents.length > 0 && (
+          <div className="mb-10">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Processed Documents</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">Your Documents</h2>
+              </div>
+            </div>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {documents.map((doc) => (
+                <DocumentCard
+                  key={doc.id}
+                  document={doc}
+                  onView={handleDocumentSelect}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
         <section className="mb-10 grid gap-6 xl:grid-cols-[2.1fr,0.9fr]">
+          {documents.length === 0 ? (
+            <div className="rounded-[36px] border border-dashed border-white/20 bg-white/[0.02] p-12 text-center">
+              <div className="mx-auto w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-6">
+                <Upload className="w-8 h-8 text-white/40" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2">No documents processed yet</h3>
+              <p className="text-neutral-400 mb-6 max-w-md mx-auto">
+                Upload your first document to start analyzing claims and detecting potential hallucinations.
+              </p>
+              <button
+                onClick={() => setShowUpload(true)}
+                className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200"
+              >
+                Upload Document
+                <Upload className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
           <div className="rounded-[36px] border border-white/10 bg-white/[0.04] p-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Document workspace</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">Apollo launch narrative — draft v3</h2>
-                <p className="mt-2 text-sm text-neutral-400">Last synced 4 minutes ago · 12 claims detected · Owner Marcus L.</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">
+                  {currentDocument ? currentDocument.filename : 'Apollo launch narrative — draft v3'}
+                </h2>
+                <p className="mt-2 text-sm text-neutral-400">
+                  {currentDocument
+                    ? `${currentDocument.claimCount} claims detected · Processed just now`
+                    : 'Last synced 4 minutes ago · 12 claims detected · Owner Marcus L.'
+                  }
+                </p>
               </div>
               <div className="flex flex-wrap gap-3">
                 <button className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/30">
@@ -555,6 +733,18 @@ export default function Dashboard() {
                       <div className="mt-5 flex flex-wrap gap-3">
                         <button
                           type="button"
+                          onClick={handleVerifyClaim}
+                          disabled={!selectedClaim || selectedClaim.status === 'Verifying...'}
+                          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                            !selectedClaim || selectedClaim.status === 'Verifying...'
+                              ? 'cursor-not-allowed bg-[#a3ff12]/40 text-black/60'
+                              : 'bg-[#a3ff12] text-black hover:bg-[#a3ff12]/90'
+                          }`}
+                        >
+                          {selectedClaim?.status === 'Verifying...' ? 'Verifying...' : '🔍 Verify Claim'}
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => applyDecision('accepted')}
                           disabled={isActionDisabled || selectedClaim.decision === 'accepted'}
                           className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
@@ -620,6 +810,7 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+          )}
 
           <aside className="space-y-6">
             <div className="rounded-[36px] border border-white/10 bg-white/[0.03] p-6">
